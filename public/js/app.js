@@ -137,7 +137,7 @@ function render() {
         + `</div>`;
 
       card.ondblclick = () => downloadFile(f.id);
-      card.onclick    = () => ts(f.id);
+      card.onclick    = (e) => { if (!e.target.closest('.sel-ind')) openPreview(f.id); };
       grid.appendChild(card);
     });
 
@@ -163,7 +163,7 @@ function render() {
         `<div class="rsel">${sel.has(f.id) ? '✓' : ''}</div>`;
 
       row.ondblclick = () => downloadFile(f.id);
-      row.onclick    = () => ts(f.id);
+      row.onclick    = (e) => { if (!e.target.closest('.rsel')) openPreview(f.id); };
       list.appendChild(row);
     });
 
@@ -249,3 +249,211 @@ setInterval(tick, 1000);
 
 // ── Init ─────────────────────────────────────────────────
 loadFiles();
+
+// ══════════════════════════════════════════════════════
+// PREVIEW MODAL
+// ══════════════════════════════════════════════════════
+
+let previewList  = [];   // file list yang sedang di-filter (untuk navigasi)
+let previewIndex = 0;    // index file yang sedang dibuka
+
+/** Buka preview modal untuk file dengan ID tertentu */
+function openPreview(fileId) {
+  // Ambil daftar file yang sedang tampil (sesuai filter & search)
+  const query = document.getElementById('srch').value.toLowerCase();
+  previewList  = files.filter(f =>
+    f.name.toLowerCase().includes(query) &&
+    (filter === 'all' || f.type === filter)
+  );
+  previewIndex = previewList.findIndex(f => f.id === fileId);
+  if (previewIndex === -1) return;
+
+  const modal = document.getElementById('preview-modal');
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderPreviewContent();
+}
+
+/** Tutup modal */
+function closePreview(e) {
+  // Jika klik di overlay (bukan di dalam box), tutup
+  if (e && e.target !== document.getElementById('preview-modal')) return;
+  const modal = document.getElementById('preview-modal');
+  modal.classList.remove('open');
+  document.body.style.overflow = '';
+
+  // Hentikan media yang sedang diputar
+  const video = modal.querySelector('video');
+  const audio = modal.querySelector('audio');
+  if (video) video.pause();
+  if (audio) audio.pause();
+}
+
+/** Navigasi prev/next */
+function previewNav(dir) {
+  const next = previewIndex + dir;
+  if (next < 0 || next >= previewList.length) return;
+  previewIndex = next;
+  renderPreviewContent();
+}
+
+/** Render konten di dalam modal sesuai tipe file */
+function renderPreviewContent() {
+  const f      = previewList[previewIndex];
+  const body   = document.getElementById('pm-body');
+  const modal  = document.getElementById('preview-modal');
+
+  // Header
+  document.getElementById('pm-filename').textContent = f.name;
+  document.getElementById('pm-filesize').textContent = formatSize(f.size);
+  document.getElementById('pm-type').textContent     = f.type.toUpperCase();
+
+  // Download button
+  document.getElementById('pm-dl-btn').onclick = () => downloadFile(f.id);
+
+  // Counter & nav
+  document.getElementById('pm-counter').textContent = `${previewIndex + 1} / ${previewList.length}`;
+  document.getElementById('pm-prev').disabled = previewIndex === 0;
+  document.getElementById('pm-next').disabled = previewIndex === previewList.length - 1;
+
+  // Hentikan media sebelumnya
+  const prevVideo = body.querySelector('video');
+  const prevAudio = body.querySelector('audio');
+  if (prevVideo) prevVideo.pause();
+  if (prevAudio) prevAudio.pause();
+
+  // Tampilkan loading
+  body.innerHTML = `<div class="pm-loading">
+    <div class="pm-spinner"></div>
+    <span>LOADING...</span>
+  </div>`;
+
+  const src = `${API}/preview/${f.id}`;
+  const ext = f.name.split('.').pop().toLowerCase();
+
+  // ── Gambar ──────────────────────────────────────────
+  if (f.type === 'image') {
+    const img = document.createElement('img');
+    img.className = 'pm-image';
+    img.alt       = f.name;
+    img.onload    = () => { body.innerHTML = ''; body.appendChild(img); };
+    img.onerror   = () => renderError(body, f.name);
+    img.src       = src;
+
+  // ── PDF ─────────────────────────────────────────────
+  } else if (ext === 'pdf') {
+    body.innerHTML = `<iframe class="pm-pdf" src="${src}" title="${f.name}"></iframe>`;
+
+  // ── Video ────────────────────────────────────────────
+  } else if (f.type === 'video') {
+    body.innerHTML = `
+      <video class="pm-video" controls autoplay>
+        <source src="${src}">
+        Browser tidak mendukung preview video.
+      </video>`;
+
+  // ── Audio ────────────────────────────────────────────
+  } else if (f.type === 'audio') {
+    body.innerHTML = `
+      <div class="pm-audio-wrap">
+        <span class="pm-audio-icon">🎵</span>
+        <div class="pm-audio-name">${f.name}</div>
+        <audio class="pm-audio" controls autoplay>
+          <source src="${src}">
+          Browser tidak mendukung preview audio.
+        </audio>
+      </div>`;
+
+  // ── CSV ─────────────────────────────────────────────
+  } else if (ext === 'csv') {
+    fetchText(src)
+      .then(text => {
+        const rows = text.trim().split('\n').map(r => r.split(','));
+        if (!rows.length) { renderError(body, f.name); return; }
+        const header = rows[0];
+        const data   = rows.slice(1);
+        let table = `<div class="pm-csv-wrap"><table class="pm-csv-table"><thead><tr>`;
+        header.forEach(h => { table += `<th>${escHtml(h.trim())}</th>`; });
+        table += `</tr></thead><tbody>`;
+        data.forEach(row => {
+          table += '<tr>';
+          row.forEach(cell => { table += `<td>${escHtml(cell.trim())}</td>`; });
+          table += '</tr>';
+        });
+        table += `</tbody></table></div>`;
+        body.innerHTML = table;
+      })
+      .catch(() => renderError(body, f.name));
+
+  // ── Teks ─────────────────────────────────────────────
+  } else if (f.type === 'doc' && ['txt','md','js','json','html','css','xml','yaml','yml','log'].includes(ext)) {
+    fetchText(src)
+      .then(text => {
+        body.innerHTML = '';
+        const pre = document.createElement('pre');
+        pre.className   = 'pm-text';
+        pre.textContent = text;
+        body.appendChild(pre);
+      })
+      .catch(() => renderError(body, f.name));
+
+  // ── Tidak didukung ────────────────────────────────────
+  } else {
+    body.innerHTML = `
+      <div class="pm-unsupported">
+        <span class="pm-unsupported-icon">${ICONS[f.type] || '📁'}</span>
+        <div class="pm-unsupported-msg">Preview tidak tersedia untuk format ini</div>
+        <button class="pm-btn" onclick="downloadFile('${f.id}')">
+          <svg viewBox="0 0 24 24" stroke-width="1.5" fill="none">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          Download File
+        </button>
+      </div>`;
+  }
+}
+
+/** Fetch teks dari URL */
+async function fetchText(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('fetch failed');
+  return r.text();
+}
+
+/** Render pesan error di body modal */
+function renderError(body, name) {
+  body.innerHTML = `
+    <div class="pm-unsupported">
+      <span class="pm-unsupported-icon">⚠️</span>
+      <div class="pm-unsupported-msg">Gagal memuat preview — ${escHtml(name)}</div>
+    </div>`;
+}
+
+/** Escape HTML untuk mencegah XSS */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// Tutup modal dengan tombol Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('preview-modal');
+    if (modal.classList.contains('open')) {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+      const video = modal.querySelector('video');
+      const audio = modal.querySelector('audio');
+      if (video) video.pause();
+      if (audio) audio.pause();
+    }
+  }
+  // Navigasi dengan arrow key saat modal terbuka
+  if (document.getElementById('preview-modal').classList.contains('open')) {
+    if (e.key === 'ArrowRight') previewNav(1);
+    if (e.key === 'ArrowLeft')  previewNav(-1);
+  }
+});

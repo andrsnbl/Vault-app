@@ -163,6 +163,53 @@
 </div>
 </div><!-- end main-app -->
 
+<!-- ── PREVIEW MODAL ── -->
+<div id="preview-modal" class="pm-overlay" onclick="closePreview(event)">
+  <div class="pm-box">
+
+    <!-- Header -->
+    <div class="pm-header">
+      <div class="pm-header-left">
+        <div class="pm-type-badge" id="pm-type">IMAGE</div>
+        <div class="pm-filename" id="pm-filename">filename.jpg</div>
+      </div>
+      <div class="pm-header-right">
+        <span class="pm-filesize" id="pm-filesize">—</span>
+        <button class="pm-btn" id="pm-dl-btn" title="Download">
+          <svg viewBox="0 0 24 24" stroke-width="1.5" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+          Download
+        </button>
+        <button class="pm-close" onclick="closePreview()" title="Tutup">
+          <svg viewBox="0 0 24 24" stroke-width="1.5" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content area -->
+    <div class="pm-body" id="pm-body">
+      <div class="pm-loading" id="pm-loading">
+        <div class="pm-spinner"></div>
+        <span>LOADING...</span>
+      </div>
+    </div>
+
+    <!-- Footer nav -->
+    <div class="pm-footer">
+      <button class="pm-nav" id="pm-prev" onclick="previewNav(-1)">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+        Prev
+      </button>
+      <span class="pm-counter" id="pm-counter">1 / 1</span>
+      <button class="pm-nav" id="pm-next" onclick="previewNav(1)">
+        Next
+        <svg viewBox="0 0 24 24" stroke-width="1.5" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
   <!-- JavaScript: urutan penting — config → api → app -->
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
