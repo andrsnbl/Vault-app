@@ -1,3 +1,4 @@
+
 const express = require('express');
 const multer  = require('multer');
 const cors    = require('cors');
@@ -15,8 +16,11 @@ const FILE_SIZE_LIMIT     = 100 * 1024 * 1024;       // 100 MB per file
 const MAX_FILES_PER_BATCH = 50;                       // maks file per upload
 
 // ─── Direktori & file metadata ─────────────────────────────────────────────
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const META_FILE  = path.join(__dirname, 'metadata.json');
+const UPLOAD_DIR = process.env.UPLOAD_DIR
+  || path.join(__dirname, 'uploads');
+const META_FILE  = process.env.META_FILE
+  || path.join(__dirname, 'uploads', 'metadata.json');
+
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ─── Middleware ────────────────────────────────────────────────────────────
